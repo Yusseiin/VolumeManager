@@ -32,6 +32,7 @@ import moe.chensi.volume.ui.theme.Typography
 import java.util.concurrent.atomic.AtomicInteger
 
 private const val VOLUME_CHANGED_ACTION = "android.media.VOLUME_CHANGED_ACTION"
+private const val EXTRA_VOLUME_STREAM_TYPE = "android.media.EXTRA_VOLUME_STREAM_TYPE"
 
 @SuppressLint("StaticFieldLeak")
 internal object VolumeChangeObserver {
@@ -40,6 +41,10 @@ internal object VolumeChangeObserver {
     private var registeredContext: Context? = null
     private var _volumeChangedCount by mutableIntStateOf(0)
     val volumeChangedCount: Int get() = _volumeChangedCount
+    private var _lastChangedStreamType by mutableIntStateOf(-1)
+
+    /** Stream type carried by the last volume change broadcast, or -1 if none was seen yet. */
+    val lastChangedStreamType: Int get() = _lastChangedStreamType
 
     @Synchronized
     fun startObserving(context: Context) {
@@ -47,6 +52,10 @@ internal object VolumeChangeObserver {
             registeredContext = context.applicationContext
             receiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
+                    val streamType = intent?.getIntExtra(EXTRA_VOLUME_STREAM_TYPE, -1) ?: -1
+                    if (streamType >= 0) {
+                        _lastChangedStreamType = streamType
+                    }
                     _volumeChangedCount++
                 }
             }

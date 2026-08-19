@@ -39,7 +39,6 @@ androidAopConfig {
 android {
     namespace = "moe.chensi.volume"
     compileSdk = 36
-    ndkVersion = "29.0.14033849"
 
     defaultConfig {
         applicationId = "moe.chensi.volume"

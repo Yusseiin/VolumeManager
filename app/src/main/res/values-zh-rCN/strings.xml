@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">AppVolMgr</string>
+    <string name="app_title">Volume Manager (Fork)</string>
     <string name="accessibility_service_description">保持 AppVolMgr 在后台运行，通过无障碍按钮或物理音量键快速调整音量</string>
     <string name="group_active">正在播放</string>
     <string name="group_inactive">未播放</string>
@@ -14,6 +15,7 @@
     <string name="about_author">作者：%s</string>
     <string name="about_github">在 GitHub 上查看</string>
     <string name="jump_to_group">跳转到分组</string>
+    <string name="expand_panel">打开音量面板</string>
     <string name="stream_media">媒体</string>
     <string name="stream_ring">铃声</string>
     <string name="stream_call">通话</string>

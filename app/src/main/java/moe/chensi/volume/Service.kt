@@ -31,6 +31,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.AbstractComposeView
@@ -43,6 +46,7 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import moe.chensi.volume.compose.AppVolumeList
+import moe.chensi.volume.compose.CompactVolumePanel
 import moe.chensi.volume.compose.SystemVolumePanel
 import moe.chensi.volume.compose.VolumeChangeObserver
 import moe.chensi.volume.system.ActivityTaskManagerProxy
@@ -62,6 +66,15 @@ class Service : AccessibilityService() {
         private const val IDLE_TIMEOUT = 5000L
         private const val AUTO_REPEAT_DELAY = 100L
         private const val AUTO_REPEAT_INITIAL_DELAY = 500L
+
+        /**
+         * Delay between a volume key press and the popup appearing, so that the screenshot chord
+         * (power + volume down) captures the screen without the popup on it. Raise it if the popup
+         * still sneaks into screenshots, lower it if the popup feels sluggish.
+         */
+        private const val SHOW_VIEW_DELAY = 500L
+
+        private const val SIDE_MARGIN_DP = 12
     }
 
     private val windowManager: WindowManager by lazy {
@@ -75,6 +88,9 @@ class Service : AccessibilityService() {
 
     private val handler = object : Handler(Looper.getMainLooper()) {
         fun hideView() {
+            removeCallbacks(showViewRunnable)
+            removeCallbacks(firstAdjustVolumeRunnable)
+
             if (viewVisible) {
                 Log.i(TAG, "animate out")
                 animateAlpha(layoutParams.alpha, 0f, ANIMATION_DURATION) {
@@ -92,15 +108,46 @@ class Service : AccessibilityService() {
 
         private val hideViewRunnable = Runnable(::hideView)
 
+        private val showViewRunnable = Runnable { this@Service.showView() }
+
+        /**
+         * Show the popup, but only after [SHOW_VIEW_DELAY] when it isn't on screen yet. Once it is
+         * visible there is nothing left to keep out of a screenshot, so it stays instant.
+         */
+        fun showViewDelayed() {
+            if (view != null) {
+                this@Service.showView()
+                return
+            }
+
+            if (!hasCallbacks(showViewRunnable)) {
+                postDelayed(showViewRunnable, SHOW_VIEW_DELAY)
+            }
+        }
+
         fun startIdleTimer() {
             removeCallbacks(hideViewRunnable)
             postDelayed(hideViewRunnable, IDLE_TIMEOUT)
         }
 
         private var repeatAdjustVolumeDirection = 0
+        private var volumeKeyHeld = false
         private val repeatAdjustVolumeRunnable: Runnable = Runnable {
             adjustVolume()
             postDelayed(repeatAdjustVolumeRunnable, AUTO_REPEAT_DELAY)
+        }
+
+        /**
+         * The first step of a press when the popup isn't on screen yet. It waits [SHOW_VIEW_DELAY]
+         * so the volume changes at the moment the popup appears, and only starts the auto repeat if
+         * the key is still down by then.
+         */
+        private val firstAdjustVolumeRunnable = Runnable {
+            adjustVolume()
+
+            if (volumeKeyHeld) {
+                postDelayed(repeatAdjustVolumeRunnable, AUTO_REPEAT_INITIAL_DELAY)
+            }
         }
 
         private fun adjustVolume() {
@@ -113,19 +160,28 @@ class Service : AccessibilityService() {
 
         fun startRepeatAdjustVolume(direction: Int) {
             repeatAdjustVolumeDirection = direction
+            volumeKeyHeld = true
+
             if (view != null) {
+                // Popup is already up, so there is nothing to wait for
                 adjustVolume()
+                postDelayed(repeatAdjustVolumeRunnable, AUTO_REPEAT_INITIAL_DELAY)
+            } else if (!hasCallbacks(firstAdjustVolumeRunnable)) {
+                postDelayed(firstAdjustVolumeRunnable, SHOW_VIEW_DELAY)
             }
-            postDelayed(repeatAdjustVolumeRunnable, AUTO_REPEAT_INITIAL_DELAY)
         }
 
         fun stopRepeatAdjustVolume() {
+            volumeKeyHeld = false
             removeCallbacks(repeatAdjustVolumeRunnable)
             startIdleTimer()
         }
     }
 
     private var lifecycle: LifecycleRegistry? = null
+
+    /** Whether the popup shows the full per-app panel instead of the compact slider. */
+    private var expanded by mutableStateOf(false)
 
     private fun createView(): View {
         return object : AbstractComposeView(this) {
@@ -153,10 +209,11 @@ class Service : AccessibilityService() {
                 setViewTreeSavedStateRegistryOwner(owner)
             }
 
-            override fun onAttachedToWindow() {
-                super.onAttachedToWindow()
-
-                Log.i(TAG, "onAttachedToWindow manufacturer: ${Build.MANUFACTURER}")
+            /** Blur whatever is behind the popup, in both compact and expanded modes. */
+            fun applyBackgroundBlur() {
+                if (background != null) {
+                    return
+                }
 
                 @Suppress("SpellCheckingInspection") if (windowManager.isCrossWindowBlurEnabled && isHardwareAccelerated && Build.MANUFACTURER != "realme") {
                     background =
@@ -165,6 +222,14 @@ class Service : AccessibilityService() {
                             call("setCornerRadius", 40f)
                         }.get()
                 }
+            }
+
+            override fun onAttachedToWindow() {
+                super.onAttachedToWindow()
+
+                Log.i(TAG, "onAttachedToWindow manufacturer: ${Build.MANUFACTURER}")
+
+                applyBackgroundBlur()
 
                 this@Service.handler.startIdleTimer()
             }
@@ -189,26 +254,41 @@ class Service : AccessibilityService() {
                         contentColor = MaterialTheme.colorScheme.onSurface,
                         shape = RoundedCornerShape(40f)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(20.dp, 16.dp)
-                        ) {
-                            AppVolumeList(
-                                apps = manager.apps.values,
-                                showAll = false,
-                                onChange = this@Service.handler::startIdleTimer
+                        if (expanded) {
+                            Column(
+                                modifier = Modifier.padding(20.dp, 16.dp)
                             ) {
-                                item("system_volume_panel") {
-                                    SystemVolumePanel(
-                                        audioManager = manager.audioManager,
-                                        notificationManagerProxy = manager.notificationManagerProxy,
-                                        showCallVolumeAlways = false,
-                                        applyVisibilityFilter = true,
-                                        allowVisibilityConfig = false,
-                                        isSliderVisible = manager::isSystemSliderVisible,
-                                        onSliderVisibilityChange = manager::setSystemSliderVisible,
-                                        onChange = this@Service.handler::startIdleTimer
-                                    )
+                                AppVolumeList(
+                                    apps = manager.apps.values,
+                                    showAll = false,
+                                    onChange = this@Service.handler::startIdleTimer
+                                ) {
+                                    item("system_volume_panel") {
+                                        SystemVolumePanel(
+                                            audioManager = manager.audioManager,
+                                            notificationManagerProxy = manager.notificationManagerProxy,
+                                            showCallVolumeAlways = false,
+                                            applyVisibilityFilter = true,
+                                            allowVisibilityConfig = false,
+                                            isSliderVisible = manager::isSystemSliderVisible,
+                                            onSliderVisibilityChange = manager::setSystemSliderVisible,
+                                            onChange = this@Service.handler::startIdleTimer
+                                        )
+                                    }
                                 }
+                            }
+                        } else {
+                            Column(
+                                modifier = Modifier.padding(8.dp)
+                            ) {
+                                CompactVolumePanel(
+                                    audioManager = manager.audioManager,
+                                    onChange = this@Service.handler::startIdleTimer,
+                                    onExpand = {
+                                        this@Service.expanded = true
+                                        this@Service.handler.startIdleTimer()
+                                    }
+                                )
                             }
                         }
                     }
@@ -225,7 +305,9 @@ class Service : AccessibilityService() {
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT // Make the background translucent
         ).apply {
-            gravity = Gravity.CENTER // Center the view
+            // Hug the left edge, vertically centred, like the stock volume panel
+            gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            x = (SIDE_MARGIN_DP * resources.displayMetrics.density).toInt()
         }
     }
 
@@ -235,6 +317,7 @@ class Service : AccessibilityService() {
     private fun showView() {
         if (view == null) {
             Log.i(TAG, "add view")
+            expanded = false
             // The view doesn't respond to input events if reused
             view = createView()
             layoutParams.alpha = 0f
@@ -370,6 +453,7 @@ class Service : AccessibilityService() {
 
         when (event.action) {
             KeyEvent.ACTION_DOWN -> {
+
                 handler.startRepeatAdjustVolume(
                     if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
                         AudioManager.ADJUST_RAISE
@@ -377,7 +461,7 @@ class Service : AccessibilityService() {
                         AudioManager.ADJUST_LOWER
                     }
                 )
-                showView()
+                handler.showViewDelayed()
             }
 
             KeyEvent.ACTION_UP -> handler.stopRepeatAdjustVolume()

@@ -135,6 +135,28 @@ class MainActivity : ComponentActivity() {
             powerManager.isIgnoringBatteryOptimizations(applicationInfo.packageName)
     }
 
+    /**
+     * Re-enable the accessibility service if something disabled it, which Android does every time
+     * the app is reinstalled. [enableAccessibilityService] returns early when it is already in the
+     * list, so this is cheap enough to run on every resume.
+     */
+    private fun reEnableAccessibilityService() {
+        if (checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            // Not granted yet; ServiceStatus() grants it and enables the service on first compose
+            return
+        }
+
+        try {
+            enableAccessibilityService(
+                ComponentName(this, Service::class.java).flattenToString()
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Can't re-enable accessibility service", e)
+        }
+    }
+
     @SuppressLint("DiscouragedPrivateApi")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -194,7 +216,7 @@ class MainActivity : ComponentActivity() {
             VolumeManagerTheme {
                 Scaffold(
                     modifier = Modifier.fillMaxSize(), topBar = {
-                        TopAppBar(title = { Text("Volume Manager") }, actions = {
+                        TopAppBar(title = { Text(stringResource(R.string.app_title)) }, actions = {
                             if (manager.shizukuStatus == Manager.ShizukuStatus.Connected) {
                                 ToggleButton(
                                     checked = showAll,
@@ -353,6 +375,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
 
         checkBatteryOptimization()
+        reEnableAccessibilityService()
     }
 
 

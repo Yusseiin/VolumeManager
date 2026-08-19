@@ -1,5 +1,21 @@
 # Volume Manager
 
+## About this fork
+
+A fork of [yume-chan/VolumeManager](https://github.com/yume-chan/VolumeManager) that replaces the large centred volume overlay with a stock-like compact slider:
+
+- A vertical volume pill on the **left edge** of the screen instead of a panel in the middle, showing the current step (for example `8/16`) and the icon of the stream the volume buttons are controlling.
+- A **"…" button** underneath it that expands to the original full panel with the per-app volume sliders.
+- The popup and the first volume step are **held back by 500 ms**, so taking a screenshot with power + volume down captures the screen without the volume UI on it.
+- The accessibility service re-enables itself whenever the app is resumed, instead of only on a cold start (Android drops it every time the app is reinstalled).
+
+The changes in this fork were made with the help of [Claude](https://claude.com/claude-code).
+
+A prebuilt APK is attached to the [releases](../../releases). It is signed with a debug key, so the upstream app has to be uninstalled first.
+
+Everything below is the upstream README.
+
+
 [<img src="https://img.shields.io/f-droid/v/moe.chensi.volume?baseUrl=https://apt.izzysoft.de/fdroid&label=IzzyOnDroid" alt="IzzyOnDroid">](https://apt.izzysoft.de/fdroid/index/apk/moe.chensi.volume)
 [<img src="https://shields.rbtlog.dev/simple/moe.chensi.volume" alt="RB shield">](https://shields.rbtlog.dev/moe.chensi.volume)
 

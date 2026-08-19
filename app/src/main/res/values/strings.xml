@@ -1,5 +1,6 @@
 <resources>
     <string name="app_name">AppVolMgr</string>
+    <string name="app_title">Volume Manager (Fork)</string>
     <string name="accessibility_service_description">Keep app volume manager (AppVolMgr) running in background, and provide quick access to it via accessibility button or physical volume button.</string>
     <string name="group_active">Active</string>
     <string name="group_inactive">Inactive</string>
@@ -13,6 +14,7 @@
     <string name="about_author">Author: %s</string>
     <string name="about_github">View on GitHub</string>
     <string name="jump_to_group">Jump to group</string>
+    <string name="expand_panel">Open volume panel</string>
     <string name="stream_media">Media</string>
     <string name="stream_ring">Ring</string>
     <string name="stream_call">Call</string>
