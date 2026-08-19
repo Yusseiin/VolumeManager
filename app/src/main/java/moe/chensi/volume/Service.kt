@@ -89,7 +89,6 @@ class Service : AccessibilityService() {
     private val handler = object : Handler(Looper.getMainLooper()) {
         fun hideView() {
             removeCallbacks(showViewRunnable)
-            removeCallbacks(firstAdjustVolumeRunnable)
 
             if (viewVisible) {
                 Log.i(TAG, "animate out")
@@ -131,23 +130,9 @@ class Service : AccessibilityService() {
         }
 
         private var repeatAdjustVolumeDirection = 0
-        private var volumeKeyHeld = false
         private val repeatAdjustVolumeRunnable: Runnable = Runnable {
             adjustVolume()
             postDelayed(repeatAdjustVolumeRunnable, AUTO_REPEAT_DELAY)
-        }
-
-        /**
-         * The first step of a press when the popup isn't on screen yet. It waits [SHOW_VIEW_DELAY]
-         * so the volume changes at the moment the popup appears, and only starts the auto repeat if
-         * the key is still down by then.
-         */
-        private val firstAdjustVolumeRunnable = Runnable {
-            adjustVolume()
-
-            if (volumeKeyHeld) {
-                postDelayed(repeatAdjustVolumeRunnable, AUTO_REPEAT_INITIAL_DELAY)
-            }
         }
 
         private fun adjustVolume() {
@@ -160,19 +145,14 @@ class Service : AccessibilityService() {
 
         fun startRepeatAdjustVolume(direction: Int) {
             repeatAdjustVolumeDirection = direction
-            volumeKeyHeld = true
-
+            // The first press only brings the popup up, it doesn't change the volume
             if (view != null) {
-                // Popup is already up, so there is nothing to wait for
                 adjustVolume()
-                postDelayed(repeatAdjustVolumeRunnable, AUTO_REPEAT_INITIAL_DELAY)
-            } else if (!hasCallbacks(firstAdjustVolumeRunnable)) {
-                postDelayed(firstAdjustVolumeRunnable, SHOW_VIEW_DELAY)
             }
+            postDelayed(repeatAdjustVolumeRunnable, AUTO_REPEAT_INITIAL_DELAY)
         }
 
         fun stopRepeatAdjustVolume() {
-            volumeKeyHeld = false
             removeCallbacks(repeatAdjustVolumeRunnable)
             startIdleTimer()
         }

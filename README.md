@@ -6,7 +6,7 @@ A fork of [yume-chan/VolumeManager](https://github.com/yume-chan/VolumeManager) 
 
 - A vertical volume pill on the **left edge** of the screen instead of a panel in the middle, showing the current step (for example `8/16`) and the icon of the stream the volume buttons are controlling.
 - A **"…" button** underneath it that expands to the original full panel with the per-app volume sliders.
-- The popup and the first volume step are **held back by 500 ms**, so taking a screenshot with power + volume down captures the screen without the volume UI on it.
+- The popup is **held back by 500 ms**, so taking a screenshot with power + volume down captures the screen without the volume UI on it.
 - The accessibility service re-enables itself whenever the app is resumed, instead of only on a cold start (Android drops it every time the app is reinstalled).
 
 The changes in this fork were made with the help of [Claude](https://claude.com/claude-code).
