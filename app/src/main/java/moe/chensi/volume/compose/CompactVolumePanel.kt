@@ -19,7 +19,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -67,6 +70,9 @@ fun CompactVolumePanel(
     // Read from the observer while composing, so every step the system reports gets drawn
     val volume = VolumeChangeObserver.volumeOf(streamType) ?: initialVolume
 
+    // A muted stream reads as zero whatever its index is, so compare with the last request
+    var lastRequested by remember(streamType) { mutableIntStateOf(-1) }
+
     val name = streamName(streamType)
 
     Column(
@@ -82,10 +88,11 @@ fun CompactVolumePanel(
             onValueChange = { value ->
                 // Round, don't truncate, or the maximum needs a pixel perfect drag to the very top
                 val target = value.roundToInt()
-                if (volume == target) {
+                if (target == lastRequested) {
                     return@VerticalTrackSlider
                 }
 
+                lastRequested = target
                 VolumeChangeObserver.setKnownVolume(streamType, target)
                 setStreamVolume(streamType, target)
                 onChange?.invoke()

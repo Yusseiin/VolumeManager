@@ -156,6 +156,11 @@ fun StreamVolumeSlider(
     }
 
     val maxVolume = remember(streamType) { audioManager.getStreamMaxVolume(streamType).toFloat() }
+
+    // Compare against what was last asked for rather than against the value read back: a muted
+    // stream reads as zero whatever its index is, which made this swallow the very request that
+    // would have muted it, leaving the slider stuck one step above the bottom
+    var lastRequested by remember(streamType) { mutableIntStateOf(-1) }
     val initialVolume = remember(streamType) { audioManager.getStreamVolume(streamType) }
     val volume = VolumeChangeObserver.volumeOf(streamType) ?: initialVolume
 
@@ -172,10 +177,11 @@ fun StreamVolumeSlider(
                 // Round, don't truncate: truncating maps everything below the last step down, so
                 // the maximum was only reachable by landing exactly on the end of the track
                 val target = value.roundToInt()
-                if (volume == target) {
+                if (target == lastRequested) {
                     return@TrackSlider
                 }
 
+                lastRequested = target
                 VolumeChangeObserver.setKnownVolume(streamType, target)
                 setStreamVolume(streamType, target)
                 Log.i(
