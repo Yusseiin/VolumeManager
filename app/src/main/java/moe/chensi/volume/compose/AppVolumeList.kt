@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import moe.chensi.volume.R
 import moe.chensi.volume.data.App
+
+private class AppGroups(val activePlayers: List<App>, val groups: List<Group>)
 
 internal data class Group(
     val name: String,
@@ -77,7 +80,7 @@ fun LazyListScope.group(
 fun AppVolumeList(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
-    apps: MutableCollection<App>,
+    apps: Map<String, App>,
     showEmpty: Boolean = false,
     showAll: Boolean,
     onChange: (() -> Unit)? = null,
@@ -88,46 +91,63 @@ fun AppVolumeList(
     val scope = rememberCoroutineScope()
     var selectedGroup by remember { mutableStateOf<String?>(null) }
 
-    val activePlayers = mutableListOf<App>()
-    val inactivePlayers = mutableListOf<App>()
-    val hiddenPlayers = mutableListOf<App>()
-    val otherAppsWithActivities = mutableListOf<App>()
-    val otherAppsWithoutActivities = mutableListOf<App>()
+    val activeName = stringResource(R.string.group_active)
+    val inactiveName = stringResource(R.string.group_inactive)
+    val hiddenName = stringResource(R.string.group_hidden)
+    val otherName = stringResource(R.string.group_other)
+    val systemName = stringResource(R.string.group_system)
 
-    for (app in apps) {
-        if (app.isPlayer) {
-            if (!app.hidden) {
-                if (app.isPlaying) {
-                    activePlayers.add(app)
+    // Sorting every installed app into groups is far too much work to redo on every recomposition,
+    // so it is derived state: it recomputes only when `apps` or the properties read here change
+    val appGroups by remember(apps, activeName, inactiveName, hiddenName, otherName, systemName) {
+        derivedStateOf {
+            val activePlayers = mutableListOf<App>()
+            val inactivePlayers = mutableListOf<App>()
+            val hiddenPlayers = mutableListOf<App>()
+            val otherAppsWithActivities = mutableListOf<App>()
+            val otherAppsWithoutActivities = mutableListOf<App>()
+
+            for (app in apps.values) {
+                if (app.isPlayer) {
+                    if (!app.hidden) {
+                        if (app.isPlaying) {
+                            activePlayers.add(app)
+                        } else {
+                            inactivePlayers.add(app)
+                        }
+                    } else {
+                        hiddenPlayers.add(app)
+                    }
                 } else {
-                    inactivePlayers.add(app)
+                    if (app.hasAnyActivity) {
+                        otherAppsWithActivities.add(app)
+                    } else {
+                        otherAppsWithoutActivities.add(app)
+                    }
                 }
-            } else {
-                hiddenPlayers.add(app)
             }
-        } else {
-            if (app.hasAnyActivity) {
-                otherAppsWithActivities.add(app)
-            } else {
-                otherAppsWithoutActivities.add(app)
+
+            val groups = buildList<Group> {
+                var currentIndex = 0
+                val addGroup = { name: String, appsList: List<App>, enableHide: Boolean ->
+                    if (appsList.isNotEmpty()) {
+                        add(Group(name, appsList, currentIndex, enableHide))
+                        currentIndex += 1 + appsList.size
+                    }
+                }
+                addGroup(activeName, activePlayers, true)
+                addGroup(inactiveName, inactivePlayers, true)
+                addGroup(hiddenName, hiddenPlayers, true)
+                addGroup(otherName, otherAppsWithActivities, false)
+                addGroup(systemName, otherAppsWithoutActivities, false)
             }
+
+            AppGroups(activePlayers, groups)
         }
     }
 
-    val groups = buildList<Group> {
-        var currentIndex = 0
-        val addGroup = { name: String, appsList: List<App>, enableHide: Boolean ->
-            if (appsList.isNotEmpty()) {
-                add(Group(name, appsList, currentIndex, enableHide))
-                currentIndex += 1 + appsList.size
-            }
-        }
-        addGroup(stringResource(R.string.group_active), activePlayers, true)
-        addGroup(stringResource(R.string.group_inactive), inactivePlayers, true)
-        addGroup(stringResource(R.string.group_hidden), hiddenPlayers, true)
-        addGroup(stringResource(R.string.group_other), otherAppsWithActivities, false)
-        addGroup(stringResource(R.string.group_system), otherAppsWithoutActivities, false)
-    }
+    val activePlayers = appGroups.activePlayers
+    val groups = appGroups.groups
 
     LaunchedEffect(showAll) {
         if (showAll && groups.isNotEmpty()) {

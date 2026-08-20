@@ -23,8 +23,6 @@ class PackageManagerProxy private constructor(context: Context) {
         }
     }
 
-    private val userManager = UserManagerProxy(context)
-
     private val packageManager = context.packageManager
     private val reflect = Reflect.on(packageManager)
 

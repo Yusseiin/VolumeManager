@@ -57,6 +57,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.net.toUri
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import moe.chensi.volume.compose.AboutDialog
 import moe.chensi.volume.compose.AppVolumeList
 import moe.chensi.volume.compose.CrashReportDialog
@@ -148,12 +152,15 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        try {
-            enableAccessibilityService(
-                ComponentName(this, Service::class.java).flattenToString()
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "Can't re-enable accessibility service", e)
+        // Writing secure settings is a binder call, keep it off the main thread
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                enableAccessibilityService(
+                    ComponentName(this@MainActivity, Service::class.java).flattenToString()
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Can't re-enable accessibility service", e)
+            }
         }
     }
 
@@ -346,7 +353,7 @@ class MainActivity : ComponentActivity() {
                                 AppVolumeList(
                                     modifier = Modifier.fillMaxSize(),
                                     contentPadding = PaddingValues(bottom = 16.dp),
-                                    apps = manager.apps.values,
+                                    apps = manager.apps,
                                     showEmpty = true,
                                     showAll = showAll,
                                     onShowAll = { showAll = true },
@@ -396,20 +403,27 @@ class MainActivity : ComponentActivity() {
         var errorInfo by remember { mutableStateOf<ErrorInfo?>(null) }
 
         LaunchedEffect(0) {
-            try {
-                grantSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS)
-            } catch (e: Exception) {
-                Log.e(TAG, "Can't add WRITE_SECURE_SETTINGS permission", e)
-                errorInfo = ErrorInfo(e.message!!, e.stackTraceToString())
-                return@LaunchedEffect
-            }
+            // `grantSelfPermission` waits for a Shizuku process to exit and both calls talk to
+            // system services, so none of this can run on the main thread
+            errorInfo = withContext(Dispatchers.IO) {
+                try {
+                    grantSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Can't add WRITE_SECURE_SETTINGS permission", e)
+                    return@withContext ErrorInfo(
+                        e.message ?: e.toString(), e.stackTraceToString()
+                    )
+                }
 
-            try {
-                enableAccessibilityService(
-                    ComponentName(this@MainActivity, Service::class.java).flattenToString()
-                )
-            } catch (e: Exception) {
-                Log.e(TAG, "Can't enable accessibility service", e)
+                try {
+                    enableAccessibilityService(
+                        ComponentName(this@MainActivity, Service::class.java).flattenToString()
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Can't enable accessibility service", e)
+                }
+
+                null
             }
         }
 

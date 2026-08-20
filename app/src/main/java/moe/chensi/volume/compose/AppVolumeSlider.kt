@@ -15,9 +15,12 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -32,6 +35,10 @@ import kotlin.math.roundToInt
 fun AppVolumeSlider(
     app: App, showOptions: Boolean, enableHide: Boolean = true, onChange: (() -> Unit)? = null
 ) {
+    val icon by produceState<ImageBitmap?>(null, app.packageName) {
+        value = app.loadIcon()
+    }
+
     Row(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -49,9 +56,10 @@ fun AppVolumeSlider(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(16.dp, 8.dp)
             ) {
-                if (app.icon != null) {
+                val iconBitmap = icon
+                if (iconBitmap != null) {
                     Image(
-                        bitmap = app.icon!!,
+                        bitmap = iconBitmap,
                         contentDescription = "App icon",
                         modifier = Modifier.size(32.dp),
                         contentScale = ContentScale.FillWidth

@@ -6,7 +6,11 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -15,6 +19,13 @@ class AppPreferencesStore(private val dataStore: DataStore<Preferences>) {
         private val key = stringPreferencesKey("apps")
 
         private val json = Json { ignoreUnknownKeys = true }
+
+        /**
+         * Everything is stored as a single blob, so without this a volume slider drag would
+         * re-encode and rewrite the whole store on every step. A burst of changes collapses into
+         * one write instead.
+         */
+        private const val SAVE_DEBOUNCE = 300L
     }
 
     private val scope = CoroutineScope(Dispatchers.IO)
@@ -28,10 +39,16 @@ class AppPreferencesStore(private val dataStore: DataStore<Preferences>) {
 
     private val lock = Any()
     private var state = SerializedState(mutableListOf(), mutableMapOf())
-    val values: List<AppPreferences>
-        get() = state.values
-    val indices: Map<String, Int>
-        get() = synchronized(lock) { state.indices.toMap() }
+    private var saveJob: Job? = null
+
+    /**
+     * Preferences and their indices, taken together so the two can't disagree: [getOrCreate] adds
+     * to both, and reading them separately can catch it half way.
+     */
+    fun snapshot(): Pair<List<AppPreferences>, Map<String, Int>> = synchronized(lock) {
+        state.values.toList() to state.indices.toMap()
+    }
+
     fun getSystemSliderVisible(id: String): Boolean {
         return synchronized(lock) { state.systemSliderVisibility[id] ?: true }
     }
@@ -105,9 +122,27 @@ class AppPreferencesStore(private val dataStore: DataStore<Preferences>) {
     }
 
     fun save() {
-        scope.launch {
-            dataStore.edit { preferences ->
-                preferences[key] = Json.encodeToString(state)
+        synchronized(lock) {
+            saveJob?.cancel()
+            saveJob = scope.launch {
+                delay(SAVE_DEBOUNCE)
+
+                // Deep copy while holding the lock: `App` keeps mutating these objects from the
+                // main thread, and `getOrCreate` appends to the collections, while this encodes
+                val snapshot = synchronized(lock) {
+                    SerializedState(
+                        state.values.map { it.copy() }.toMutableList(),
+                        state.indices.toMutableMap(),
+                        state.systemSliderVisibility.toMutableMap()
+                    )
+                }
+
+                // Only the waiting is cancellable, a write that started has to finish
+                withContext(NonCancellable) {
+                    dataStore.edit { preferences ->
+                        preferences[key] = json.encodeToString(snapshot)
+                    }
+                }
             }
         }
     }

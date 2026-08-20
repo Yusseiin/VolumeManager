@@ -12,9 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import moe.chensi.volume.BuildConfig
 import moe.chensi.volume.system.AudioPlaybackConfigurationProxy
 import moe.chensi.volume.system.PackageManagerProxy
 import java.util.Locale
@@ -86,8 +84,6 @@ data class App(
                 }
                 return defaultComparator
             }
-
-        val scope = CoroutineScope(Dispatchers.IO)
     }
 
     val packageName: String
@@ -99,24 +95,17 @@ data class App(
     val applicationInfo
         get() = packageInfo.applicationInfo!!
 
-    private var _icon by mutableStateOf<ImageBitmap?>(null)
-    private var _iconLoading = false
-    val icon: ImageBitmap?
-        get() {
-            if (!_iconLoading) {
-                _iconLoading = true
-                scope.launch {
-                    _icon = packageManager.getDrawable(
-                        packageName,
-                        applicationInfo.icon,
-                        applicationInfo
-                    )?.toBitmap(128, 128)?.asImageBitmap()
-                        ?: packageManager.defaultActivityIconImageBitmap
-                }
-            }
+    /**
+     * Load this app's icon, through [AppIconCache]. Only rows that are on screen ask for it, so
+     * memory scales with the visible list rather than with the number of installed apps, and a load
+     * that failed is retried the next time the row appears.
+     */
+    suspend fun loadIcon(): ImageBitmap = AppIconCache.get(this)
 
-            return _icon
-        }
+    internal fun decodeIcon(): ImageBitmap =
+        packageManager.getDrawable(packageName, applicationInfo.icon, applicationInfo)
+            ?.toBitmap(AppIconCache.ICON_SIZE, AppIconCache.ICON_SIZE)?.asImageBitmap()
+            ?: packageManager.defaultActivityIconImageBitmap
 
     fun setPreferences(value: AppPreferences) {
         preferences = value
@@ -142,10 +131,13 @@ data class App(
             return
         }
 
-        Log.d(
-            "AppVolManager",
-            "add player $packageName ${config.clientPid} ${config.playerTypeName} ${config.playerStateName}"
-        )
+        if (BuildConfig.DEBUG) {
+            // `playerTypeName` and `playerStateName` are reflective hidden API calls
+            Log.d(
+                "AppVolManager",
+                "add player $packageName ${config.clientPid} ${config.playerTypeName} ${config.playerStateName}"
+            )
+        }
 
         // Apply volume to potentially new player
         if (!config.setVolume(_volume)) {

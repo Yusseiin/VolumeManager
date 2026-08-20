@@ -173,10 +173,11 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
 
     private fun start() {
         appPreferencesStore.track { first ->
-            for ((packageName, index) in appPreferencesStore.indices) {
-                if (!first) {
+            if (!first) {
+                val (values, indices) = appPreferencesStore.snapshot()
+                for ((packageName, index) in indices) {
                     // Replace with new reference
-                    getApp(packageName)?.setPreferences(appPreferencesStore.values[index])
+                    getApp(packageName)?.setPreferences(values[index])
                 }
             }
 

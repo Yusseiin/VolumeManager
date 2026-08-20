@@ -239,7 +239,7 @@ class Service : AccessibilityService() {
                                 modifier = Modifier.padding(20.dp, 16.dp)
                             ) {
                                 AppVolumeList(
-                                    apps = manager.apps.values,
+                                    apps = manager.apps,
                                     showAll = false,
                                     onChange = this@Service.handler::startIdleTimer
                                 ) {
@@ -404,7 +404,22 @@ class Service : AccessibilityService() {
 
     val activityTaskManager by lazy { ActivityTaskManagerProxy(this) }
 
+    private var volumeButtonsDisabled = false
+
+    private fun isVolumeButtonsDisabledForForegroundApp(): Boolean {
+        val task = activityTaskManager.getForegroundTask()
+        Log.i(TAG, "foreground task: $task")
+
+        val app = manager.apps[task?.app ?: return false] ?: return false
+        return app.disableVolumeButtons
+    }
+
     override fun onKeyEvent(event: KeyEvent): Boolean {
+        // Key events can arrive before `onServiceConnected` has assigned `manager`
+        if (!::manager.isInitialized) {
+            return false
+        }
+
         Log.i(
             TAG,
             "onKeyEvent action = ${event.action}, key code = ${event.keyCode}, shizuku permission = ${manager.shizukuStatus}"
@@ -420,15 +435,15 @@ class Service : AccessibilityService() {
             return false
         }
 
-        // Check foreground task ignorance list
-        val task = activityTaskManager.getForegroundTask()
-        Log.i(TAG, "onKeyEvent foreground task: $task")
+        // Checking the foreground app is a binder call, so ask once per press and reuse the answer
+        // for the auto repeats and the release. That also keeps the decision consistent across the
+        // whole press instead of possibly consuming the release of a key we let through.
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+            volumeButtonsDisabled = isVolumeButtonsDisabledForForegroundApp()
+        }
 
-        if (task != null) {
-            val app = manager.apps[task.app]
-            if (app != null && app.disableVolumeButtons) {
-                return false
-            }
+        if (volumeButtonsDisabled) {
+            return false
         }
 
         when (event.action) {
