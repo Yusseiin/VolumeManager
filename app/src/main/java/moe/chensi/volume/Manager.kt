@@ -13,8 +13,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import android.content.pm.PackageInfo
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import moe.chensi.volume.data.App
 import moe.chensi.volume.data.AppPreferencesStore
 import moe.chensi.volume.system.AudioPlaybackConfigurationProxy
@@ -70,6 +74,8 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
 
     private val appContext = context.applicationContext
 
+    private val scope = CoroutineScope(Dispatchers.IO)
+
     val apps = mutableStateMapOf<String, App>()
 
     /**
@@ -86,13 +92,13 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
                     appPreferencesStore.remove(packageName)
                 }
 
-                Intent.ACTION_PACKAGE_REPLACED -> {
-                    // The stored `PackageInfo` is stale now, so build a new `App` for it
+                // Reading package info goes through Shizuku, which is far too slow to do on the
+                // main thread this receiver runs on
+                Intent.ACTION_PACKAGE_ADDED, Intent.ACTION_PACKAGE_REPLACED -> scope.launch {
+                    // A replaced app's stored `PackageInfo` is stale, so rebuild its entry
                     apps.remove(packageName)
-                    reloadApps()
+                    packageManager.getPackageInfo(packageName)?.let { addApp(it) }
                 }
-
-                Intent.ACTION_PACKAGE_ADDED -> reloadApps()
             }
         }
     }
@@ -108,18 +114,23 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
         appContext.registerReceiver(packageReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
     }
 
+    private fun addApp(packageInfo: PackageInfo) {
+        val appInfo = packageInfo.applicationInfo ?: return
+        val packageName = packageInfo.packageName
+
+        apps[packageName] = App(
+            packageManager,
+            packageInfo,
+            packageManager.loadLabel(appInfo),
+            appPreferencesStore.getOrCreate(packageName),
+            { preferences -> appPreferencesStore.save(packageName, preferences) }
+        )
+    }
+
     private fun reloadApps() {
         for (packageInfo in packageManager.getInstalledPackagesForAllUsers()) {
-            val appInfo = packageInfo.applicationInfo ?: continue
             if (!apps.containsKey(packageInfo.packageName)) {
-                val packageName = packageInfo.packageName
-                apps[packageName] = App(
-                    packageManager,
-                    packageInfo,
-                    packageManager.loadLabel(appInfo),
-                    appPreferencesStore.getOrCreate(packageName),
-                    { preferences -> appPreferencesStore.save(packageName, preferences) }
-                )
+                addApp(packageInfo)
             }
         }
     }

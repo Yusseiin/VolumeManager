@@ -42,6 +42,19 @@ class PackageManagerProxy private constructor(context: Context) {
         return packageManager.getInstalledPackages(MATCH_ANY_USER or PackageManager.GET_ACTIVITIES)
     }
 
+    /** Info for a single package, for when only one app changed. */
+    @EnableBinderProxy
+    fun getPackageInfo(packageName: String): PackageInfo? = try {
+        packageManager.getPackageInfo(
+            packageName,
+            PackageManager.PackageInfoFlags.of(
+                (MATCH_ANY_USER or PackageManager.GET_ACTIVITIES).toLong()
+            )
+        )
+    } catch (_: PackageManager.NameNotFoundException) {
+        null
+    }
+
     @EnableBinderProxy
     fun getDrawable(packageName: String, resId: Int, appInfo: ApplicationInfo): Drawable? {
         return packageManager.getDrawable(packageName, resId, appInfo)
