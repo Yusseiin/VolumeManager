@@ -28,6 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import moe.chensi.volume.R
 import moe.chensi.volume.ui.theme.Typography
+import kotlin.math.roundToInt
 
 private val PILL_WIDTH = 52.dp
 
@@ -78,7 +79,8 @@ fun CompactVolumePanel(
             value = volume.toFloat(),
             valueRange = 0f..maxVolume,
             onValueChange = { value ->
-                val target = value.toInt()
+                // Round, don't truncate, or the maximum needs a pixel perfect drag to the very top
+                val target = value.roundToInt()
                 if (volume == target) {
                     return@VerticalTrackSlider
                 }

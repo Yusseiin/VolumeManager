@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import moe.chensi.volume.ui.theme.Typography
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.roundToInt
 
 private const val VOLUME_CHANGED_ACTION = "android.media.VOLUME_CHANGED_ACTION"
 private const val EXTRA_VOLUME_STREAM_TYPE = "android.media.EXTRA_VOLUME_STREAM_TYPE"
@@ -167,7 +168,9 @@ fun StreamVolumeSlider(
             value = volume.toFloat(),
             valueRange = 0f..maxVolume,
             onValueChange = { value ->
-                val target = value.toInt()
+                // Round, don't truncate: truncating maps everything below the last step down, so
+                // the maximum was only reachable by landing exactly on the end of the track
+                val target = value.roundToInt()
                 if (volume == target) {
                     return@TrackSlider
                 }
