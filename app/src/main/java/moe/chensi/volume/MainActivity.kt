@@ -59,6 +59,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import moe.chensi.volume.compose.AboutDialog
@@ -77,6 +78,11 @@ class MainActivity : ComponentActivity() {
         private const val TAG = "VolumeManager.Activity"
 
         private const val SERVICE_NAME_SEPARATOR = ":"
+
+        /** How long to let the system bind the service before deciding that it is dead. */
+        private const val SERVICE_BIND_GRACE = 1500L
+
+        private const val SERVICE_TOGGLE_DELAY = 300L
     }
 
     private lateinit var application: MyApplication
@@ -139,12 +145,29 @@ class MainActivity : ComponentActivity() {
             powerManager.isIgnoringBatteryOptimizations(applicationInfo.packageName)
     }
 
+    private fun disableAccessibilityService(name: String) {
+        val enabledAccessibilityServices = Settings.Secure.getString(
+            contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return
+
+        val remaining = enabledAccessibilityServices.split(SERVICE_NAME_SEPARATOR)
+            .filter { it.isNotBlank() && it != name }
+            .joinToString(SERVICE_NAME_SEPARATOR)
+
+        Settings.Secure.putString(
+            contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, remaining
+        )
+    }
+
     /**
-     * Re-enable the accessibility service if something disabled it, which Android does every time
-     * the app is reinstalled. [enableAccessibilityService] returns early when it is already in the
-     * list, so this is cheap enough to run on every resume.
+     * Make sure the accessibility service is enabled *and* actually running.
+     *
+     * Android marks the service as crashed whenever its process is killed, which happens every time
+     * the app is reinstalled, and a crashed service stays in the enabled list while receiving
+     * nothing at all: volume keys silently go to the system instead. Simply writing the setting
+     * again does not help, the component has to leave the list and come back.
      */
-    private fun reEnableAccessibilityService() {
+    private fun ensureAccessibilityServiceRunning() {
         if (checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS)
             != PackageManager.PERMISSION_GRANTED
         ) {
@@ -152,14 +175,24 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        val name = ComponentName(this, Service::class.java).flattenToString()
+
         // Writing secure settings is a binder call, keep it off the main thread
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                enableAccessibilityService(
-                    ComponentName(this@MainActivity, Service::class.java).flattenToString()
-                )
+                enableAccessibilityService(name)
+
+                delay(SERVICE_BIND_GRACE)
+                if (Service.isConnected) {
+                    return@launch
+                }
+
+                Log.i(TAG, "service is enabled but not running, re-binding it")
+                disableAccessibilityService(name)
+                delay(SERVICE_TOGGLE_DELAY)
+                enableAccessibilityService(name)
             } catch (e: Exception) {
-                Log.e(TAG, "Can't re-enable accessibility service", e)
+                Log.e(TAG, "Can't make sure the accessibility service is running", e)
             }
         }
     }
@@ -273,7 +306,9 @@ class MainActivity : ComponentActivity() {
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         modifier = Modifier
                             .padding(innerPadding)
-                            .padding(16.dp, 0.dp)
+                            // Enough of an inset that the slider ends are not under the edge
+                            // gesture areas, and don't look clipped by the screen
+                            .padding(24.dp, 0.dp)
                     ) {
                         when (manager.shizukuStatus) {
                             Manager.ShizukuStatus.Uninstalled -> {
@@ -382,7 +417,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
 
         checkBatteryOptimization()
-        reEnableAccessibilityService()
+        ensureAccessibilityServiceRunning()
     }
 
 

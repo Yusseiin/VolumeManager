@@ -81,36 +81,32 @@ fun VerticalTrackSlider(
             }
             .pointerInput(enabled) {
                 if (enabled) {
-                    detectTapGestures { offset ->
-                        val percentage = 1f - (offset.y / size.height.toFloat())
+                    // The value follows the finger: the bottom of the pill is zero and the top is
+                    // the maximum, wherever the gesture started
+                    fun update(y: Float) {
+                        val percentage = (1f - y / size.height.toFloat()).coerceIn(0f, 1f)
                         val newValue = valueRange.start + percentage * totalRange
-                        val coercedNewValue =
-                            newValue.coerceIn(valueRange.start, valueRange.endInclusive)
-                        if (coercedNewValue != latestValue) {
-                            onValueChange(coercedNewValue)
+                        if (newValue != latestValue) {
+                            onValueChange(newValue)
                         }
                     }
+
+                    detectTapGestures { offset -> update(offset.y) }
                 }
             }
             .pointerInput(enabled) {
                 if (enabled) {
-                    var startValue = 0f
-                    var startY = 0f
-
-                    detectVerticalDragGestures(onDragStart = { offset ->
-                        startValue = latestValue
-                        startY = offset.y
-                    }) { change, _ ->
-                        // Dragging up (decreasing y) has to raise the value
-                        val dragAmount = startY - change.position.y
-                        val changedPercentage = dragAmount / size.height.toFloat()
-                        val newValue = startValue + changedPercentage * totalRange
-                        val coercedNewValue =
-                            newValue.coerceIn(valueRange.start, valueRange.endInclusive)
-                        if (coercedNewValue != latestValue) {
-                            onValueChange(coercedNewValue)
+                    fun update(y: Float) {
+                        val percentage = (1f - y / size.height.toFloat()).coerceIn(0f, 1f)
+                        val newValue = valueRange.start + percentage * totalRange
+                        if (newValue != latestValue) {
+                            onValueChange(newValue)
                         }
                     }
+
+                    detectVerticalDragGestures(
+                        onDragStart = { offset -> update(offset.y) }
+                    ) { change, _ -> update(change.position.y) }
                 }
             },
     ) {

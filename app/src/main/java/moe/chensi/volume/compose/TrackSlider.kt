@@ -2,6 +2,7 @@ package moe.chensi.volume.compose
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,8 +46,8 @@ fun TrackSlider(
     val density = LocalDensity.current
     val cornerRadiusPx = with(density) { cornerRadius.toPx() }
 
-    val fillWidthPercentage =
-        (coercedValue - valueRange.start) / (valueRange.endInclusive - valueRange.start)
+    val totalRange = valueRange.endInclusive - valueRange.start
+    val fillWidthPercentage = if (totalRange == 0f) 0f else (coercedValue - valueRange.start) / totalRange
 
     Box(
         modifier = modifier
@@ -75,23 +76,33 @@ fun TrackSlider(
             }
             .pointerInput(enabled) {
                 if (enabled) {
-                    var startValue = 0f
-                    var startX = 0f
-
-                    detectHorizontalDragGestures(onDragStart = { offset ->
-                        startValue = latestValue
-                        startX = offset.x
-                    }) { change, _ ->
-                        val dragAmount = change.position.x - startX
-                        val changedPercentage = dragAmount / size.width.toFloat()
-                        val totalRange = valueRange.endInclusive - valueRange.start
-                        val newValue = (startValue + changedPercentage * totalRange)
-                        val coercedNewValue =
-                            newValue.coerceIn(valueRange.start, valueRange.endInclusive)
-                        if (coercedNewValue != latestValue) {
-                            onValueChange(coercedNewValue)
+                    // The value follows the finger. Moving it by however far the finger travelled
+                    // instead meant the reachable range depended on where the drag started, so
+                    // neither end could be reached from the middle.
+                    fun update(x: Float) {
+                        val percentage = (x / size.width.toFloat()).coerceIn(0f, 1f)
+                        val newValue = valueRange.start + percentage * totalRange
+                        if (newValue != latestValue) {
+                            onValueChange(newValue)
                         }
                     }
+
+                    detectTapGestures { offset -> update(offset.x) }
+                }
+            }
+            .pointerInput(enabled) {
+                if (enabled) {
+                    fun update(x: Float) {
+                        val percentage = (x / size.width.toFloat()).coerceIn(0f, 1f)
+                        val newValue = valueRange.start + percentage * totalRange
+                        if (newValue != latestValue) {
+                            onValueChange(newValue)
+                        }
+                    }
+
+                    detectHorizontalDragGestures(
+                        onDragStart = { offset -> update(offset.x) }
+                    ) { change, _ -> update(change.position.x) }
                 }
             },
     ) {

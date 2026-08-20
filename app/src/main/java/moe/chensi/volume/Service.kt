@@ -47,6 +47,7 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import moe.chensi.volume.compose.AppVolumeList
 import moe.chensi.volume.compose.CompactVolumePanel
 import moe.chensi.volume.compose.SystemVolumePanel
+import moe.chensi.volume.compose.VolumeChangeObserver
 import moe.chensi.volume.system.ActivityTaskManagerProxy
 import moe.chensi.volume.ui.theme.VolumeManagerTheme
 import org.joor.Reflect
@@ -59,6 +60,14 @@ class Service : AccessibilityService() {
 
         private const val TAG = "VolumeManager.Service"
 
+        /**
+         * Whether a connected instance exists. Android keeps a crashed service in the enabled list,
+         * so being listed there says nothing about whether it is actually running.
+         */
+        @Volatile
+        var isConnected = false
+            private set
+
         private const val ANIMATION_DURATION = 300L
 
         private const val IDLE_TIMEOUT = 5000L
@@ -69,6 +78,9 @@ class Service : AccessibilityService() {
          */
         private const val EXPANDED_IDLE_TIMEOUT = 15000L
         private const val AUTO_REPEAT_DELAY = 100L
+
+        /** How long to wait before re-reading a volume we just changed, so the read isn't early. */
+        private const val VOLUME_SETTLE_DELAY = 60L
         private const val AUTO_REPEAT_INITIAL_DELAY = 500L
 
         /**
@@ -91,7 +103,7 @@ class Service : AccessibilityService() {
             )!!
         )
     }
-    private lateinit var manager: Manager
+    private val manager: Manager by lazy { (application as MyApplication).manager }
 
     private val handler = object : Handler(Looper.getMainLooper()) {
         fun hideView() {
@@ -140,10 +152,28 @@ class Service : AccessibilityService() {
             postDelayed(repeatAdjustVolumeRunnable, AUTO_REPEAT_DELAY)
         }
 
+        private val refreshVolumeRunnable = Runnable {
+            VolumeChangeObserver.refresh(manager.audioManager)
+        }
+
         private fun adjustVolume() {
             manager.audioManager.adjustSuggestedStreamVolume(
                 repeatAdjustVolumeDirection, AudioManager.USE_DEFAULT_STREAM_TYPE, 0
             )
+
+            // Read straight away so the popup keeps moving, then again once the change has settled,
+            // in case that first read came back before it was applied
+            VolumeChangeObserver.refresh(manager.audioManager)
+            removeCallbacks(refreshVolumeRunnable)
+            postDelayed(refreshVolumeRunnable, VOLUME_SETTLE_DELAY)
+
+            Log.i(
+                TAG,
+                "adjustVolume direction = $repeatAdjustVolumeDirection, media = ${
+                    manager.audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                }"
+            )
+
             startIdleTimer()
         }
 
@@ -396,8 +426,7 @@ class Service : AccessibilityService() {
     override fun onServiceConnected() {
         Log.i(TAG, "onServiceConnected")
 
-        val application = super.getApplication() as MyApplication
-        manager = application.manager
+        isConnected = true
 
         accessibilityButtonController.registerAccessibilityButtonCallback(object :
             AccessibilityButtonCallback() {
@@ -425,6 +454,8 @@ class Service : AccessibilityService() {
 
         Log.i(TAG, "onDestroy")
 
+        isConnected = false
+
         // The service is also stopped when it is simply disabled or the app is reinstalled, so
         // tear the popup down instead of leaving an orphaned window behind
         currentAnimator?.cancel()
@@ -447,11 +478,6 @@ class Service : AccessibilityService() {
     }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
-        // Key events can arrive before `onServiceConnected` has assigned `manager`
-        if (!::manager.isInitialized) {
-            return false
-        }
-
         Log.i(
             TAG,
             "onKeyEvent action = ${event.action}, key code = ${event.keyCode}, shizuku permission = ${manager.shizukuStatus}"

@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.media.AudioManager
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -34,8 +35,18 @@ private const val VOLUME_CHANGED_ACTION = "android.media.VOLUME_CHANGED_ACTION"
 private const val EXTRA_VOLUME_STREAM_TYPE = "android.media.EXTRA_VOLUME_STREAM_TYPE"
 private const val EXTRA_VOLUME_STREAM_VALUE = "android.media.EXTRA_VOLUME_STREAM_VALUE"
 
+private const val TAG = "VolumeManager.Volume"
+
 @SuppressLint("StaticFieldLeak")
 internal object VolumeChangeObserver {
+    private val displayableStreams = intArrayOf(
+        AudioManager.STREAM_MUSIC,
+        AudioManager.STREAM_RING,
+        AudioManager.STREAM_VOICE_CALL,
+        AudioManager.STREAM_ALARM,
+        AudioManager.STREAM_NOTIFICATION
+    )
+
     private val refCount = AtomicInteger(0)
     private var receiver: BroadcastReceiver? = null
     private var registeredContext: Context? = null
@@ -62,6 +73,18 @@ internal object VolumeChangeObserver {
         streamVolumes[streamType] = volume
     }
 
+    /**
+     * Re-read the volumes from [audioManager].
+     *
+     * A change made anywhere else arrives as a broadcast, but a volume key handled by this app
+     * apparently produces none that reaches us, which left the popup frozen while a key was held.
+     */
+    fun refresh(audioManager: AudioManager) {
+        for (streamType in displayableStreams) {
+            streamVolumes[streamType] = audioManager.getStreamVolume(streamType)
+        }
+    }
+
     @Synchronized
     fun startObserving(context: Context) {
         if (refCount.incrementAndGet() == 1) {
@@ -80,6 +103,8 @@ internal object VolumeChangeObserver {
                     _lastChangedStreamType = streamType
 
                     val volume = intent.getIntExtra(EXTRA_VOLUME_STREAM_VALUE, -1)
+                    Log.i(TAG, "broadcast stream = $streamType, volume = $volume")
+
                     if (volume >= 0) {
                         streamVolumes[streamType] = volume
                     }
