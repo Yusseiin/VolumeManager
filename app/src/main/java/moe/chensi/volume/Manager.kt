@@ -166,6 +166,16 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
         )
     }
 
+    /**
+     * Set a stream's volume through Shizuku, because some values are refused to a normal app: going
+     * to zero on ring or notification switches the ringer mode, which needs Do Not Disturb access,
+     * and the framework quietly clamps it to one instead.
+     */
+    @EnableBinderProxy
+    fun setStreamVolume(streamType: Int, index: Int) {
+        audioManager.setStreamVolume(streamType, index, 0)
+    }
+
     @SuppressLint("DiscouragedPrivateApi")
     @EnableBinderProxy
     fun processAudioPlaybackConfigurations(configs: List<AudioPlaybackConfiguration>) {

@@ -42,6 +42,7 @@ private val PILL_HEIGHT = 240.dp
 @Composable
 fun CompactVolumePanel(
     audioManager: AudioManager,
+    setStreamVolume: (streamType: Int, index: Int) -> Unit,
     onChange: (() -> Unit)? = null,
     onExpand: () -> Unit,
 ) {
@@ -86,7 +87,7 @@ fun CompactVolumePanel(
                 }
 
                 VolumeChangeObserver.setKnownVolume(streamType, target)
-                audioManager.setStreamVolume(streamType, target, 0)
+                setStreamVolume(streamType, target)
                 onChange?.invoke()
             },
         ) {

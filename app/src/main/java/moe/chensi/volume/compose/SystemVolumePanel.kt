@@ -54,6 +54,7 @@ private fun isCallMode(mode: Int): Boolean {
 @Composable
 fun SystemVolumePanel(
     audioManager: AudioManager,
+    setStreamVolume: (streamType: Int, index: Int) -> Unit,
     notificationManagerProxy: NotificationManagerProxy,
     showCallVolumeAlways: Boolean,
     applyVisibilityFilter: Boolean,
@@ -88,6 +89,7 @@ fun SystemVolumePanel(
                     icon = Icons.Default.PhoneInTalk,
                     name = stringResource(R.string.stream_call),
                     audioManager = audioManager,
+                    setStreamVolume = setStreamVolume,
                     footer = {
                         SliderVisibilityFooter(
                             sliderId = SystemSliderIds.Call,
@@ -108,6 +110,7 @@ fun SystemVolumePanel(
                 icon = Icons.AutoMirrored.Default.VolumeUp,
                 name = stringResource(R.string.stream_media),
                 audioManager = audioManager,
+                setStreamVolume = setStreamVolume,
                 footer = {
                     SliderVisibilityFooter(
                         sliderId = SystemSliderIds.Media,
@@ -127,6 +130,7 @@ fun SystemVolumePanel(
                 icon = Icons.Default.RingVolume,
                 name = stringResource(R.string.stream_ring),
                 audioManager = audioManager,
+                setStreamVolume = setStreamVolume,
                 footer = {
                     RingFooter(
                         audioManager = audioManager,
@@ -147,6 +151,7 @@ fun SystemVolumePanel(
                 icon = Icons.Default.Alarm,
                 name = stringResource(R.string.stream_alarm),
                 audioManager = audioManager,
+                setStreamVolume = setStreamVolume,
                 footer = {
                     SliderVisibilityFooter(
                         sliderId = SystemSliderIds.Alarm,
@@ -166,6 +171,7 @@ fun SystemVolumePanel(
                 icon = Icons.Default.NotificationsNone,
                 name = stringResource(R.string.stream_notification),
                 audioManager = audioManager,
+                setStreamVolume = setStreamVolume,
                 footer = {
                     SliderVisibilityFooter(
                         sliderId = SystemSliderIds.Notification,

@@ -142,6 +142,7 @@ fun StreamVolumeSlider(
     icon: ImageVector,
     name: String,
     audioManager: AudioManager,
+    setStreamVolume: (streamType: Int, index: Int) -> Unit,
     footer: (@Composable () -> Unit)? = null,
     onChange: (() -> Unit)? = null
 ) {
@@ -176,7 +177,13 @@ fun StreamVolumeSlider(
                 }
 
                 VolumeChangeObserver.setKnownVolume(streamType, target)
-                audioManager.setStreamVolume(streamType, target, 0)
+                setStreamVolume(streamType, target)
+                Log.i(
+                    TAG,
+                    "slider stream = $streamType, asked for $target, got ${
+                        audioManager.getStreamVolume(streamType)
+                    }"
+                )
                 onChange?.invoke()
             },
         ) {

@@ -396,6 +396,7 @@ class MainActivity : ComponentActivity() {
                                         item("system_volume_panel_main") {
                                             SystemVolumePanel(
                                                 audioManager = manager.audioManager,
+                                                setStreamVolume = manager::setStreamVolume,
                                                 notificationManagerProxy = manager.notificationManagerProxy,
                                                 showCallVolumeAlways = true,
                                                 applyVisibilityFilter = !showAll,

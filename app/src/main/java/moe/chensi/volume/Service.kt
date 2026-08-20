@@ -26,6 +26,7 @@ import android.view.animation.AccelerateDecelerateInterpolator
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -94,6 +95,9 @@ class Service : AccessibilityService() {
 
         /** Corner radius of the popup, in dp so it doesn't shrink on denser screens. */
         private const val CORNER_RADIUS_DP = 16
+
+        /** Keeps the expanded panel's sliders from running the full width of the screen. */
+        private val EXPANDED_PANEL_WIDTH = 320.dp
     }
 
     private val windowManager: WindowManager by lazy {
@@ -270,7 +274,9 @@ class Service : AccessibilityService() {
                     ) {
                         if (expanded) {
                             Column(
-                                modifier = Modifier.padding(20.dp, 16.dp)
+                                modifier = Modifier
+                                    .width(EXPANDED_PANEL_WIDTH)
+                                    .padding(20.dp, 16.dp)
                             ) {
                                 AppVolumeList(
                                     apps = manager.apps,
@@ -280,6 +286,7 @@ class Service : AccessibilityService() {
                                     item("system_volume_panel") {
                                         SystemVolumePanel(
                                             audioManager = manager.audioManager,
+                                            setStreamVolume = manager::setStreamVolume,
                                             notificationManagerProxy = manager.notificationManagerProxy,
                                             showCallVolumeAlways = false,
                                             applyVisibilityFilter = true,
@@ -297,9 +304,11 @@ class Service : AccessibilityService() {
                             ) {
                                 CompactVolumePanel(
                                     audioManager = manager.audioManager,
+                                    setStreamVolume = manager::setStreamVolume,
                                     onChange = this@Service.handler::startIdleTimer,
                                     onExpand = {
                                         this@Service.expanded = true
+                                        this@Service.applyExpandedWindowPosition()
                                         this@Service.handler.startIdleTimer()
                                     }
                                 )
@@ -319,10 +328,22 @@ class Service : AccessibilityService() {
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT // Make the background translucent
         ).apply {
-            // Hug the left edge, vertically centred, like the stock volume panel
             gravity = Gravity.START or Gravity.CENTER_VERTICAL
-            x = (SIDE_MARGIN_DP * resources.displayMetrics.density).toInt()
         }
+    }
+
+    /** The compact slider hugs the side the popup opens on, like the stock volume panel. */
+    private fun applyCompactWindowPosition() {
+        layoutParams.gravity = Gravity.START or Gravity.CENTER_VERTICAL
+        layoutParams.x = (SIDE_MARGIN_DP * resources.displayMetrics.density).toInt()
+    }
+
+    /** The expanded panel is much wider, so it sits in the middle instead of against an edge. */
+    private fun applyExpandedWindowPosition() {
+        layoutParams.gravity = Gravity.CENTER
+        layoutParams.x = 0
+
+        view?.let { windowManager.updateViewLayout(it, layoutParams) }
     }
 
     private var view: View? = null
@@ -343,6 +364,7 @@ class Service : AccessibilityService() {
         if (view == null) {
             Log.i(TAG, "add view")
             expanded = false
+            applyCompactWindowPosition()
             // The view doesn't respond to input events if reused
             val newView = createView()
             layoutParams.alpha = 0f
