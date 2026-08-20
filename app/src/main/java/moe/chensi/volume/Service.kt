@@ -314,9 +314,22 @@ class Service : AccessibilityService() {
             Log.i(TAG, "add view")
             expanded = false
             // The view doesn't respond to input events if reused
-            view = createView()
+            val newView = createView()
             layoutParams.alpha = 0f
-            windowManager.addView(view, layoutParams)
+
+            try {
+                windowManager.addView(newView, layoutParams)
+            } catch (e: WindowManager.BadTokenException) {
+                // The service has no usable window token while it is between connections, which
+                // happens for a moment after the app is reinstalled. Dropping this popup is a lot
+                // better than taking the process down with it.
+                Log.w(TAG, "can't add the popup window right now", e)
+                lifecycle?.currentState = Lifecycle.State.DESTROYED
+                lifecycle = null
+                return
+            }
+
+            view = newView
         }
 
         if (!viewVisible) {

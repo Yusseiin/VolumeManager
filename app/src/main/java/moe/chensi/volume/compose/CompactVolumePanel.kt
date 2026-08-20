@@ -29,6 +29,11 @@ import androidx.compose.ui.unit.dp
 import moe.chensi.volume.R
 import moe.chensi.volume.ui.theme.Typography
 
+private val PILL_WIDTH = 52.dp
+
+/** Height of the pill. This is the number to change if it should be taller or shorter. */
+private val PILL_HEIGHT = 240.dp
+
 /**
  * Stock-like compact volume slider: a single vertical pill for whichever stream the volume buttons
  * are currently affecting, with a button underneath that opens the full per-app panel.
@@ -68,8 +73,8 @@ fun CompactVolumePanel(
     ) {
         VerticalTrackSlider(
             modifier = Modifier
-                .width(52.dp)
-                .height(176.dp),
+                .width(PILL_WIDTH)
+                .height(PILL_HEIGHT),
             value = volume.toFloat(),
             valueRange = 0f..maxVolume,
             onValueChange = { value ->
@@ -116,12 +121,14 @@ fun CompactVolumePanel(
  * Best guess at the stream the volume buttons will act on, used until the first volume change
  * broadcast tells us for sure. Public APIs only.
  */
-private fun activeStreamType(audioManager: AudioManager): Int = when {
-    audioManager.mode == AudioManager.MODE_IN_CALL ||
-            audioManager.mode == AudioManager.MODE_IN_COMMUNICATION -> AudioManager.STREAM_VOICE_CALL
+private fun activeStreamType(audioManager: AudioManager): Int = when (audioManager.mode) {
+    AudioManager.MODE_IN_CALL, AudioManager.MODE_IN_COMMUNICATION -> AudioManager.STREAM_VOICE_CALL
 
-    audioManager.isMusicActive -> AudioManager.STREAM_MUSIC
-    else -> AudioManager.STREAM_RING
+    AudioManager.MODE_RINGTONE -> AudioManager.STREAM_RING
+
+    // Volume keys act on media by default on current Android, whether or not something is playing,
+    // so guessing anything else just shows the wrong slider until the first change arrives
+    else -> AudioManager.STREAM_MUSIC
 }
 
 private fun streamIcon(streamType: Int): ImageVector = when (streamType) {
