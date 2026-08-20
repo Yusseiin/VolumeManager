@@ -19,6 +19,10 @@ import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -61,6 +65,20 @@ fun VerticalTrackSlider(
                 )
             })
             .background(trackColor)
+            .semantics {
+                // This app is itself an accessibility service, so its own sliders should at least
+                // be readable and settable by one
+                progressBarRangeInfo = ProgressBarRangeInfo(coercedValue, valueRange)
+                setProgress { target ->
+                    val coerced = target.coerceIn(valueRange.start, valueRange.endInclusive)
+                    if (coerced == latestValue) {
+                        false
+                    } else {
+                        onValueChange(coerced)
+                        true
+                    }
+                }
+            }
             .pointerInput(enabled) {
                 if (enabled) {
                     detectTapGestures { offset ->

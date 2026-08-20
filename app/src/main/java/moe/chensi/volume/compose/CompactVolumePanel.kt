@@ -19,12 +19,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -46,10 +41,6 @@ fun CompactVolumePanel(
 ) {
     val context = LocalContext.current
 
-    var streamType by remember { mutableIntStateOf(activeStreamType(audioManager)) }
-    var volume by remember { mutableIntStateOf(audioManager.getStreamVolume(streamType)) }
-    var maxVolume by remember { mutableFloatStateOf(audioManager.getStreamMaxVolume(streamType).toFloat()) }
-
     DisposableEffect(context) {
         VolumeChangeObserver.startObserving(context)
         onDispose {
@@ -57,17 +48,17 @@ fun CompactVolumePanel(
         }
     }
 
-    val volumeChangedCount = VolumeChangeObserver.volumeChangedCount
+    // Follow the stream the system actually changed, so the pill always shows what the buttons did,
+    // guessing only until the first change comes in
+    val guessedStreamType = remember { activeStreamType(audioManager) }
+    val changedStreamType = VolumeChangeObserver.lastChangedStreamType
+    val streamType = if (changedStreamType >= 0) changedStreamType else guessedStreamType
 
-    // Follow the stream the system actually changed, so the pill always shows what the buttons did
-    LaunchedEffect(volumeChangedCount) {
-        val changedStreamType = VolumeChangeObserver.lastChangedStreamType
-        if (changedStreamType >= 0) {
-            streamType = changedStreamType
-        }
-        maxVolume = audioManager.getStreamMaxVolume(streamType).toFloat()
-        volume = audioManager.getStreamVolume(streamType)
-    }
+    val maxVolume = remember(streamType) { audioManager.getStreamMaxVolume(streamType).toFloat() }
+    val initialVolume = remember(streamType) { audioManager.getStreamVolume(streamType) }
+
+    // Read from the observer while composing, so every step the system reports gets drawn
+    val volume = VolumeChangeObserver.volumeOf(streamType) ?: initialVolume
 
     val name = streamName(streamType)
 
@@ -87,7 +78,7 @@ fun CompactVolumePanel(
                     return@VerticalTrackSlider
                 }
 
-                volume = target
+                VolumeChangeObserver.setKnownVolume(streamType, target)
                 audioManager.setStreamVolume(streamType, target, 0)
                 onChange?.invoke()
             },

@@ -82,7 +82,7 @@ fun SystemVolumePanel(
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (!applyVisibilityFilter || isSliderVisible(SystemSliderIds.Call)) {
-            if (!showCallVolumeAlways && inCallMode || showCallVolumeAlways) {
+            if (showCallVolumeAlways || inCallMode) {
                 StreamVolumeSlider(
                     streamType = AudioManager.STREAM_VOICE_CALL,
                     icon = Icons.Default.PhoneInTalk,

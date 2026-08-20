@@ -24,7 +24,6 @@ class PackageManagerProxy private constructor(context: Context) {
     }
 
     private val packageManager = context.packageManager
-    private val reflect = Reflect.on(packageManager)
 
     init {
         val service =

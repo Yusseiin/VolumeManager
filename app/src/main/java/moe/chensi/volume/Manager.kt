@@ -2,7 +2,10 @@ package moe.chensi.volume
 
 import android.annotation.SuppressLint
 import android.app.ActivityManager
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.media.AudioPlaybackConfiguration
@@ -65,18 +68,57 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
         appPreferencesStore.setSystemSliderVisible(id, visible)
     }
 
+    private val appContext = context.applicationContext
+
     val apps = mutableStateMapOf<String, App>()
+
+    /**
+     * Without this the list only ever grows: an uninstalled app stays in it until the process
+     * restarts, and a newly installed one shows up only by chance, when [getApp] happens to miss.
+     */
+    private val packageReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val packageName = intent.data?.schemeSpecificPart ?: return
+
+            when (intent.action) {
+                Intent.ACTION_PACKAGE_FULLY_REMOVED -> {
+                    apps.remove(packageName)
+                    appPreferencesStore.remove(packageName)
+                }
+
+                Intent.ACTION_PACKAGE_REPLACED -> {
+                    // The stored `PackageInfo` is stale now, so build a new `App` for it
+                    apps.remove(packageName)
+                    reloadApps()
+                }
+
+                Intent.ACTION_PACKAGE_ADDED -> reloadApps()
+            }
+        }
+    }
+
+    private fun registerPackageReceiver() {
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_REPLACED)
+            addAction(Intent.ACTION_PACKAGE_FULLY_REMOVED)
+            addDataScheme("package")
+        }
+
+        appContext.registerReceiver(packageReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+    }
 
     private fun reloadApps() {
         for (packageInfo in packageManager.getInstalledPackagesForAllUsers()) {
             val appInfo = packageInfo.applicationInfo ?: continue
             if (!apps.containsKey(packageInfo.packageName)) {
-                apps[packageInfo.packageName] = App(
+                val packageName = packageInfo.packageName
+                apps[packageName] = App(
                     packageManager,
                     packageInfo,
                     packageManager.loadLabel(appInfo),
-                    appPreferencesStore.getOrCreate(packageInfo.packageName),
-                    appPreferencesStore::save
+                    appPreferencesStore.getOrCreate(packageName),
+                    { preferences -> appPreferencesStore.save(packageName, preferences) }
                 )
             }
         }
@@ -96,6 +138,7 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
     @EnableBinderProxy
     private fun initialize() {
         reloadApps()
+        registerPackageReceiver()
 
         val playbackConfigurations = audioManager.activePlaybackConfigurations
         processAudioPlaybackConfigurations(playbackConfigurations)

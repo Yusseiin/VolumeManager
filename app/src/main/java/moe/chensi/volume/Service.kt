@@ -23,7 +23,6 @@ import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.animation.AccelerateDecelerateInterpolator
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -48,7 +47,6 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import moe.chensi.volume.compose.AppVolumeList
 import moe.chensi.volume.compose.CompactVolumePanel
 import moe.chensi.volume.compose.SystemVolumePanel
-import moe.chensi.volume.compose.VolumeChangeObserver
 import moe.chensi.volume.system.ActivityTaskManagerProxy
 import moe.chensi.volume.ui.theme.VolumeManagerTheme
 import org.joor.Reflect
@@ -75,6 +73,9 @@ class Service : AccessibilityService() {
         private const val SHOW_VIEW_DELAY = 500L
 
         private const val SIDE_MARGIN_DP = 12
+
+        /** Corner radius of the popup, in dp so it doesn't shrink on denser screens. */
+        private const val CORNER_RADIUS_DP = 16
     }
 
     private val windowManager: WindowManager by lazy {
@@ -94,11 +95,7 @@ class Service : AccessibilityService() {
                 Log.i(TAG, "animate out")
                 animateAlpha(layoutParams.alpha, 0f, ANIMATION_DURATION) {
                     if (!viewVisible) {
-                        Log.i(TAG, "remove view")
-                        view!!.background = null
-                        lifecycle?.currentState = Lifecycle.State.DESTROYED
-                        windowManager.removeView(view)
-                        view = null
+                        removeViewNow()
                     }
                 }
                 viewVisible = false
@@ -139,7 +136,6 @@ class Service : AccessibilityService() {
             manager.audioManager.adjustSuggestedStreamVolume(
                 repeatAdjustVolumeDirection, AudioManager.USE_DEFAULT_STREAM_TYPE, 0
             )
-            VolumeChangeObserver.notifyVolumeChanged()
             startIdleTimer()
         }
 
@@ -199,7 +195,7 @@ class Service : AccessibilityService() {
                     background =
                         Reflect.on(rootSurfaceControl).call("createBackgroundBlurDrawable").apply {
                             call("setBlurRadius", 200)
-                            call("setCornerRadius", 40f)
+                            call("setCornerRadius", CORNER_RADIUS_DP * resources.displayMetrics.density)
                         }.get()
                 }
             }
@@ -232,7 +228,7 @@ class Service : AccessibilityService() {
                     Surface(
                         color = Color(1f, 1f, 1f, 0.3f),
                         contentColor = MaterialTheme.colorScheme.onSurface,
-                        shape = RoundedCornerShape(40f)
+                        shape = RoundedCornerShape(CORNER_RADIUS_DP.dp)
                     ) {
                         if (expanded) {
                             Column(
@@ -293,6 +289,17 @@ class Service : AccessibilityService() {
 
     private var view: View? = null
     private var viewVisible = false
+
+    private fun removeViewNow() {
+        val current = view ?: return
+
+        Log.i(TAG, "remove view")
+        current.background = null
+        lifecycle?.currentState = Lifecycle.State.DESTROYED
+        windowManager.removeView(current)
+        view = null
+        viewVisible = false
+    }
 
     private fun showView() {
         if (view == null) {
@@ -397,7 +404,11 @@ class Service : AccessibilityService() {
 
         Log.i(TAG, "onDestroy")
 
-        Toast.makeText(this, "Accessibility service died!", Toast.LENGTH_SHORT).show()
+        // The service is also stopped when it is simply disabled or the app is reinstalled, so
+        // tear the popup down instead of leaving an orphaned window behind
+        currentAnimator?.cancel()
+        handler.removeCallbacksAndMessages(null)
+        removeViewNow()
 
         unregisterReceiver(broadcastReceiver)
     }

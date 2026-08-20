@@ -39,6 +39,7 @@ class AppPreferencesStore(private val dataStore: DataStore<Preferences>) {
 
     private val lock = Any()
     private var state = SerializedState(mutableListOf(), mutableMapOf())
+    private val defaultPreferences = AppPreferences()
     private var saveJob: Job? = null
 
     /**
@@ -107,6 +108,33 @@ class AppPreferencesStore(private val dataStore: DataStore<Preferences>) {
         }
     }
 
+    /** Forget an app entirely, for when it gets uninstalled. */
+    fun remove(packageName: String) {
+        val changed = synchronized(lock) {
+            val removedIndex = state.indices[packageName] ?: return@synchronized false
+
+            val values = state.values.toMutableList()
+            values.removeAt(removedIndex)
+
+            // Every index after the removed one shifts down by one
+            val indices = mutableMapOf<String, Int>()
+            for ((name, index) in state.indices) {
+                if (name == packageName) {
+                    continue
+                }
+
+                indices[name] = if (index > removedIndex) index - 1 else index
+            }
+
+            state = state.copy(values = values, indices = indices)
+            true
+        }
+
+        if (changed) {
+            save()
+        }
+    }
+
     fun getOrCreate(packageName: String): AppPreferences {
         synchronized(lock) {
             val index = state.indices[packageName]
@@ -121,6 +149,24 @@ class AppPreferencesStore(private val dataStore: DataStore<Preferences>) {
         }
     }
 
+    /**
+     * Persist [preferences] for [packageName], putting the entry back if [save] had pruned it for
+     * being unmodified. Without this, the first change to a pruned app would go nowhere.
+     */
+    fun save(packageName: String, preferences: AppPreferences) {
+        synchronized(lock) {
+            val index = state.indices[packageName]
+            if (index == null) {
+                state.indices[packageName] = state.values.size
+                state.values.add(preferences)
+            } else if (state.values[index] !== preferences) {
+                state.values[index] = preferences
+            }
+        }
+
+        save()
+    }
+
     fun save() {
         synchronized(lock) {
             saveJob?.cancel()
@@ -128,12 +174,25 @@ class AppPreferencesStore(private val dataStore: DataStore<Preferences>) {
                 delay(SAVE_DEBOUNCE)
 
                 // Deep copy while holding the lock: `App` keeps mutating these objects from the
-                // main thread, and `getOrCreate` appends to the collections, while this encodes
+                // main thread, and `getOrCreate` appends to the collections, while this encodes.
+                // Apps still at their defaults are left out, otherwise this grows to one entry per
+                // installed app; they simply get defaults again the next time they are seen.
                 val snapshot = synchronized(lock) {
+                    val values = mutableListOf<AppPreferences>()
+                    val indices = mutableMapOf<String, Int>()
+
+                    for ((packageName, index) in state.indices) {
+                        val value = state.values[index]
+                        if (value == defaultPreferences) {
+                            continue
+                        }
+
+                        indices[packageName] = values.size
+                        values.add(value.copy())
+                    }
+
                     SerializedState(
-                        state.values.map { it.copy() }.toMutableList(),
-                        state.indices.toMutableMap(),
-                        state.systemSliderVisibility.toMutableMap()
+                        values, indices, state.systemSliderVisibility.toMutableMap()
                     )
                 }
 

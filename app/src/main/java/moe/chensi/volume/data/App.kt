@@ -22,9 +22,11 @@ data class App(
     val packageInfo: PackageInfo,
     val name: String,
     private var preferences: AppPreferences,
-    private val savePreferences: () -> Unit
+    private val savePreferences: (AppPreferences) -> Unit
 ) {
     companion object {
+        private const val TAG = "VolumeManager.App"
+
         val collator: Collator by lazy {
             Collator.getInstance().apply {
                 strength = Collator.PRIMARY
@@ -134,7 +136,7 @@ data class App(
         if (BuildConfig.DEBUG) {
             // `playerTypeName` and `playerStateName` are reflective hidden API calls
             Log.d(
-                "AppVolManager",
+                TAG,
                 "add player $packageName ${config.clientPid} ${config.playerTypeName} ${config.playerStateName}"
             )
         }
@@ -173,7 +175,7 @@ data class App(
 
             _isPlayer = value
             preferences.isPlayer = value
-            savePreferences()
+            savePreferences(preferences)
         }
 
     var isPlaying by mutableStateOf(false)
@@ -191,7 +193,7 @@ data class App(
 
             _volume = value
             preferences.volume = value
-            savePreferences()
+            savePreferences(preferences)
         }
 
     private var _hidden by mutableStateOf(preferences.hidden)
@@ -204,7 +206,7 @@ data class App(
 
             _hidden = value
             preferences.hidden = value
-            savePreferences()
+            savePreferences(preferences)
         }
 
     private var _disableVolumeButtons by mutableStateOf(preferences.disableVolumeButtons)
@@ -217,6 +219,6 @@ data class App(
 
             _disableVolumeButtons = value
             preferences.disableVolumeButtons = value
-            savePreferences()
+            savePreferences(preferences)
         }
 }
