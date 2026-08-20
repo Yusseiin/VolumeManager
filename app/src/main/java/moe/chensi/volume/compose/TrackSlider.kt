@@ -47,38 +47,19 @@ fun TrackSlider(
     val cornerRadiusPx = with(density) { cornerRadius.toPx() }
 
     val totalRange = valueRange.endInclusive - valueRange.start
-    val fillWidthPercentage = if (totalRange == 0f) 0f else (coercedValue - valueRange.start) / totalRange
+    val fillWidthPercentage =
+        if (totalRange == 0f) 0f else (coercedValue - valueRange.start) / totalRange
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(GenericShape { size, _ ->
-                addRoundRect(
-                    RoundRect(
-                        0f, 0f, size.width, size.height, cornerRadius = CornerRadius(cornerRadiusPx)
-                    )
-                )
-            })
-            .background(trackColor)
-            .semantics {
-                // This app is itself an accessibility service, so its own sliders should at least
-                // be readable and settable by one
-                progressBarRangeInfo = ProgressBarRangeInfo(coercedValue, valueRange)
-                setProgress { target ->
-                    val coerced = target.coerceIn(valueRange.start, valueRange.endInclusive)
-                    if (coerced == latestValue) {
-                        false
-                    } else {
-                        onValueChange(coerced)
-                        true
-                    }
-                }
-            }
+            // Gestures go before `clip`: clipping applies to hit testing as well as drawing, and
+            // with a corner radius this large only a narrow band down the middle of the track
+            // reaches its ends, so the extreme values could never be selected.
             .pointerInput(enabled) {
                 if (enabled) {
                     // The value follows the finger. Moving it by however far the finger travelled
-                    // instead meant the reachable range depended on where the drag started, so
-                    // neither end could be reached from the middle.
+                    // instead meant the reachable range depended on where the drag started.
                     fun update(x: Float) {
                         val percentage = (x / size.width.toFloat()).coerceIn(0f, 1f)
                         val newValue = valueRange.start + percentage * totalRange
@@ -103,6 +84,28 @@ fun TrackSlider(
                     detectHorizontalDragGestures(
                         onDragStart = { offset -> update(offset.x) }
                     ) { change, _ -> update(change.position.x) }
+                }
+            }
+            .clip(GenericShape { size, _ ->
+                addRoundRect(
+                    RoundRect(
+                        0f, 0f, size.width, size.height, cornerRadius = CornerRadius(cornerRadiusPx)
+                    )
+                )
+            })
+            .background(trackColor)
+            .semantics {
+                // This app is itself an accessibility service, so its own sliders should at least
+                // be readable and settable by one
+                progressBarRangeInfo = ProgressBarRangeInfo(coercedValue, valueRange)
+                setProgress { target ->
+                    val coerced = target.coerceIn(valueRange.start, valueRange.endInclusive)
+                    if (coerced == latestValue) {
+                        false
+                    } else {
+                        onValueChange(coerced)
+                        true
+                    }
                 }
             },
     ) {
@@ -136,4 +139,3 @@ fun TrackSlider(
         }
     }
 }
-

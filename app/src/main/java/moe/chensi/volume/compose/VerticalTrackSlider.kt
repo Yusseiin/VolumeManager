@@ -57,28 +57,9 @@ fun VerticalTrackSlider(
 
     Box(
         modifier = modifier
-            .clip(GenericShape { size, _ ->
-                addRoundRect(
-                    RoundRect(
-                        0f, 0f, size.width, size.height, cornerRadius = CornerRadius(cornerRadiusPx)
-                    )
-                )
-            })
-            .background(trackColor)
-            .semantics {
-                // This app is itself an accessibility service, so its own sliders should at least
-                // be readable and settable by one
-                progressBarRangeInfo = ProgressBarRangeInfo(coercedValue, valueRange)
-                setProgress { target ->
-                    val coerced = target.coerceIn(valueRange.start, valueRange.endInclusive)
-                    if (coerced == latestValue) {
-                        false
-                    } else {
-                        onValueChange(coerced)
-                        true
-                    }
-                }
-            }
+            // Gestures go before `clip`: clipping applies to hit testing as well as
+            // drawing, so with rounded ends only a narrow band down the middle of the
+            // pill reaches the very top and bottom
             .pointerInput(enabled) {
                 if (enabled) {
                     // The value follows the finger: the bottom of the pill is zero and the top is
@@ -107,6 +88,28 @@ fun VerticalTrackSlider(
                     detectVerticalDragGestures(
                         onDragStart = { offset -> update(offset.y) }
                     ) { change, _ -> update(change.position.y) }
+                }
+            }
+            .clip(GenericShape { size, _ ->
+                addRoundRect(
+                    RoundRect(
+                        0f, 0f, size.width, size.height, cornerRadius = CornerRadius(cornerRadiusPx)
+                    )
+                )
+            })
+            .background(trackColor)
+            .semantics {
+                // This app is itself an accessibility service, so its own sliders should at least
+                // be readable and settable by one
+                progressBarRangeInfo = ProgressBarRangeInfo(coercedValue, valueRange)
+                setProgress { target ->
+                    val coerced = target.coerceIn(valueRange.start, valueRange.endInclusive)
+                    if (coerced == latestValue) {
+                        false
+                    } else {
+                        onValueChange(coerced)
+                        true
+                    }
                 }
             },
     ) {
