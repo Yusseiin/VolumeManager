@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.util.Log
 import android.media.AudioManager
 import android.media.AudioPlaybackConfiguration
 import androidx.compose.runtime.getValue
@@ -31,6 +32,8 @@ import rikka.shizuku.ShizukuProvider
 @SuppressLint("PrivateApi")
 class Manager(context: Context, dataStore: DataStore<Preferences>) {
     companion object {
+        private const val TAG = "VolumeManager.Manager"
+
         const val SHIZUKU_PACKAGE_NAME = "moe.shizuku.privileged.api"
     }
 
@@ -167,12 +170,32 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
     }
 
     /**
-     * Set a stream's volume through Shizuku, because some values are refused to a normal app: going
-     * to zero on ring or notification switches the ringer mode, which needs Do Not Disturb access,
-     * and the framework quietly clamps it to one instead.
+     * Set a stream's volume, through Shizuku so that values a normal app is not allowed to write go
+     * through as well.
+     *
+     * Zero on the ring and notification streams is not an index the framework accepts, it is a mute:
+     * asking for it directly gets quietly clamped to one. Muting those streams individually also
+     * keeps the phone's ringer mode alone, so silencing notifications doesn't silence the ringer.
      */
     @EnableBinderProxy
     fun setStreamVolume(streamType: Int, index: Int) {
+        val mutable = streamType == AudioManager.STREAM_RING ||
+                streamType == AudioManager.STREAM_NOTIFICATION
+
+        if (mutable && index == 0) {
+            audioManager.adjustStreamVolume(streamType, AudioManager.ADJUST_MUTE, 0)
+            Log.i(
+                TAG,
+                "muted stream $streamType, now ${audioManager.getStreamVolume(streamType)}, " +
+                        "muted = ${audioManager.isStreamMute(streamType)}"
+            )
+            return
+        }
+
+        if (mutable && audioManager.isStreamMute(streamType)) {
+            audioManager.adjustStreamVolume(streamType, AudioManager.ADJUST_UNMUTE, 0)
+        }
+
         audioManager.setStreamVolume(streamType, index, 0)
     }
 
