@@ -13,6 +13,22 @@ The changes in this fork were made with the help of [Claude](https://claude.com/
 
 A prebuilt APK is attached to the [releases](../../releases). It is signed with a debug key, so the upstream app has to be uninstalled first.
 
+### Building
+
+`./gradlew assembleDebug` needs nothing beyond a JDK 21 and the Android SDK.
+
+`./gradlew assembleRelease` produces an unsigned APK unless a `keystore.properties` exists in the
+project root, which is gitignored and looks like this:
+
+```properties
+storeFile=keystore.jks
+storePassword=...
+keyAlias=...
+keyPassword=...
+```
+
+CI skips signing when the `KEYSTORE_FILE` secret is absent, so a fork builds without any setup.
+
 Everything below is the upstream README.
 
 

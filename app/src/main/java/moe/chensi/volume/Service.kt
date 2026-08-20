@@ -62,6 +62,12 @@ class Service : AccessibilityService() {
         private const val ANIMATION_DURATION = 300L
 
         private const val IDLE_TIMEOUT = 5000L
+
+        /**
+         * The expanded panel is something you read and scroll through, so it shouldn't be taken
+         * away as quickly as a slider that just flashes past.
+         */
+        private const val EXPANDED_IDLE_TIMEOUT = 15000L
         private const val AUTO_REPEAT_DELAY = 100L
         private const val AUTO_REPEAT_INITIAL_DELAY = 500L
 
@@ -123,7 +129,9 @@ class Service : AccessibilityService() {
 
         fun startIdleTimer() {
             removeCallbacks(hideViewRunnable)
-            postDelayed(hideViewRunnable, IDLE_TIMEOUT)
+            postDelayed(
+                hideViewRunnable, if (expanded) EXPANDED_IDLE_TIMEOUT else IDLE_TIMEOUT
+            )
         }
 
         private var repeatAdjustVolumeDirection = 0

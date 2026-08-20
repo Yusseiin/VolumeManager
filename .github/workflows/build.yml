@@ -15,6 +15,10 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    env:
+      # A fork has no signing secrets, and an unsigned build is still worth having, so signing is
+      # skipped instead of failing the whole run
+      HAS_SIGNING_KEY: ${{ secrets.KEYSTORE_FILE != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -29,18 +33,29 @@ jobs:
       - name: Build
         run: ./gradlew assembleRelease
 
+      - name: Find APK
+        id: apk
+        run: echo "path=$(ls app/build/outputs/apk/release/*.apk | head -1)" >> "$GITHUB_OUTPUT"
+
       - name: Sign APK
+        if: env.HAS_SIGNING_KEY == 'true'
         run: |
           echo "${{ secrets.KEYSTORE_FILE }}" | base64 -d > keystore.jks
-          $ANDROID_HOME/build-tools/34.0.0/zipalign -c -v 4 app/build/outputs/apk/release/app-release-unsigned.apk
-          $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
+          # Don't pin a build-tools version, the runner image decides which ones exist
+          BUILD_TOOLS="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          "$BUILD_TOOLS/zipalign" -c -v 4 "${{ steps.apk.outputs.path }}"
+          "$BUILD_TOOLS/apksigner" sign \
             --ks keystore.jks \
             --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
             --ks-key-alias ${{ secrets.KEY_ALIAS }} \
             --key-pass pass:${{ secrets.KEY_PASSWORD }} \
-            app/build/outputs/apk/release/app-release-unsigned.apk
+            "${{ steps.apk.outputs.path }}"
 
-      - run: cp app/build/outputs/apk/release/app-release-unsigned.apk volume-manager.apk
+      - name: Report signing state
+        if: env.HAS_SIGNING_KEY != 'true'
+        run: echo "::notice::No KEYSTORE_FILE secret, uploading the APK unsigned. Add the signing secrets to publish an installable build from CI."
+
+      - run: cp "${{ steps.apk.outputs.path }}" volume-manager.apk
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
