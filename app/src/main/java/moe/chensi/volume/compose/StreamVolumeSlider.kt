@@ -99,6 +99,14 @@ internal object VolumeChangeObserver {
                         return
                     }
 
+                    if (intent.action == AudioManager.RINGER_MODE_CHANGED_ACTION) {
+                        // Going to vibrate or silent mutes the ring and notification streams without
+                        // any volume change broadcast, so re-read instead of waiting for one
+                        Log.i(TAG, "ringer mode changed, re-reading volumes")
+                        audioManager?.let { refresh(it) }
+                        return
+                    }
+
                     val streamType = intent.getIntExtra(EXTRA_VOLUME_STREAM_TYPE, -1)
                     if (streamType < 0) {
                         return
@@ -119,10 +127,12 @@ internal object VolumeChangeObserver {
                     }
                 }
             }
+            val filter = IntentFilter(VOLUME_CHANGED_ACTION).apply {
+                addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
+            }
+
             registeredContext!!.registerReceiver(
-                receiver!!,
-                IntentFilter(VOLUME_CHANGED_ACTION),
-                Context.RECEIVER_NOT_EXPORTED
+                receiver!!, filter, Context.RECEIVER_NOT_EXPORTED
             )
         }
     }
