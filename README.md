@@ -2,16 +2,20 @@
 
 ## About this fork
 
-A fork of [yume-chan/VolumeManager](https://github.com/yume-chan/VolumeManager) that replaces the large centred volume overlay with a stock-like compact slider:
+A fork of [yume-chan/VolumeManager](https://github.com/yume-chan/VolumeManager) that replaces the large centred volume overlay with a stock-like compact slider.
 
-- A vertical volume pill on the **left edge** of the screen instead of a panel in the middle, showing the current step (for example `8/16`) and the icon of the stream the volume buttons are controlling.
-- A **"…" button** underneath it that expands to the original full panel with the per-app volume sliders.
-- The popup is **held back by 500 ms**, so taking a screenshot with power + volume down captures the screen without the volume UI on it.
-- The accessibility service re-enables itself whenever the app is resumed, instead of only on a cold start (Android drops it every time the app is reinstalled).
+- A vertical volume pill on the **left edge** of the screen instead of a panel in the middle, showing the current step (for example `8/16`) and the icon of the stream the volume buttons are controlling. It follows whichever stream the system actually changes, and starts on media, which is what the volume keys act on unless a call is up or the phone is ringing.
+- A **"…" button** underneath expands to the original panel with the per-app sliders. That panel sits in the middle of the screen and stays open longer, since it is something you read rather than glance at.
+- The popup is **held back by 500 ms**, so a screenshot taken with power + volume down catches the screen without the volume UI on it. The first press only opens the popup, as upstream does.
+- Sliders follow your finger, so either end is always reachable, and dragging ring or notification to zero mutes that stream instead of stopping one step short.
+
+### Fixes on top of upstream
+
+Preferences are debounced instead of rewriting the whole store on every slider step, and are no longer serialised while another thread mutates them. The app list is not re-partitioned on every recomposition, icons are loaded per visible row through a bounded cache rather than kept for every installed app, and the accessibility service no longer subscribes to window events it discards. Installing or uninstalling an app updates the list. Permission grants and secure settings writes are off the main thread. The popup window is torn down with the service, a popup that cannot be shown no longer crashes the app, and a service that Android has marked as crashed is detected and re-bound instead of silently swallowing every volume key. Both sliders expose their value and range to accessibility services.
 
 The changes in this fork were made with the help of [Claude](https://claude.com/claude-code).
 
-A prebuilt APK is attached to the [releases](../../releases). It is signed with a debug key, so the upstream app has to be uninstalled first.
+A prebuilt APK is attached to the [releases](../../releases). It is signed with this fork's own key, so any other build of Volume Manager has to be uninstalled first.
 
 ### Building
 

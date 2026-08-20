@@ -171,12 +171,14 @@ class Service : AccessibilityService() {
             removeCallbacks(refreshVolumeRunnable)
             postDelayed(refreshVolumeRunnable, VOLUME_SETTLE_DELAY)
 
-            Log.i(
-                TAG,
-                "adjustVolume direction = $repeatAdjustVolumeDirection, media = ${
-                    manager.audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-                }"
-            )
+            if (BuildConfig.DEBUG) {
+                Log.i(
+                    TAG,
+                    "adjustVolume direction = $repeatAdjustVolumeDirection, media = ${
+                        manager.audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                    }"
+                )
+            }
 
             startIdleTimer()
         }

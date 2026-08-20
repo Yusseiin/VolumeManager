@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import moe.chensi.volume.BuildConfig
 import moe.chensi.volume.ui.theme.Typography
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.roundToInt
@@ -102,7 +103,9 @@ internal object VolumeChangeObserver {
                     if (intent.action == AudioManager.RINGER_MODE_CHANGED_ACTION) {
                         // Going to vibrate or silent mutes the ring and notification streams without
                         // any volume change broadcast, so re-read instead of waiting for one
-                        Log.i(TAG, "ringer mode changed, re-reading volumes")
+                        if (BuildConfig.DEBUG) {
+                            Log.i(TAG, "ringer mode changed, re-reading volumes")
+                        }
                         audioManager?.let { refresh(it) }
                         return
                     }
@@ -116,7 +119,12 @@ internal object VolumeChangeObserver {
 
                     val volume = intent.getIntExtra(EXTRA_VOLUME_STREAM_VALUE, -1)
                     val muted = audioManager?.isStreamMute(streamType) == true
-                    Log.i(TAG, "broadcast stream = $streamType, volume = $volume, muted = $muted")
+                    if (BuildConfig.DEBUG) {
+                        Log.i(
+                            TAG,
+                            "broadcast stream = $streamType, volume = $volume, muted = $muted"
+                        )
+                    }
 
                     if (muted) {
                         // The broadcast carries the stored index, but a muted stream plays nothing,
@@ -202,12 +210,14 @@ fun StreamVolumeSlider(
                 lastRequested = target
                 VolumeChangeObserver.setKnownVolume(streamType, target)
                 setStreamVolume(streamType, target)
-                Log.i(
-                    TAG,
-                    "slider stream = $streamType, asked for $target, got ${
-                        audioManager.getStreamVolume(streamType)
-                    }"
-                )
+                if (BuildConfig.DEBUG) {
+                    Log.i(
+                        TAG,
+                        "slider stream = $streamType, asked for $target, got ${
+                            audioManager.getStreamVolume(streamType)
+                        }"
+                    )
+                }
                 onChange?.invoke()
             },
         ) {

@@ -63,7 +63,7 @@ fun AboutDialog(
                             },
                             modifier = Modifier.alignByBaseline()
                         ) {
-                            Text("Copy")
+                            Text(stringResource(R.string.copy))
                         }
                     }
                     Text(

@@ -22,8 +22,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import moe.chensi.volume.R
 import moe.chensi.volume.data.App
 import moe.chensi.volume.icons.Hook
 import moe.chensi.volume.icons.HookOff
@@ -60,7 +62,7 @@ fun AppVolumeSlider(
                 if (iconBitmap != null) {
                     Image(
                         bitmap = iconBitmap,
-                        contentDescription = "App icon",
+                        contentDescription = stringResource(R.string.app_icon),
                         modifier = Modifier.size(32.dp),
                         contentScale = ContentScale.FillWidth
                     )
@@ -92,9 +94,9 @@ fun AppVolumeSlider(
                 ToggleButton(
                     checked = app.hidden,
                     checkedIcon = Icons.Default.VisibilityOff,
-                    checkedDescription = "Unhide app",
+                    checkedDescription = stringResource(R.string.unhide_app),
                     uncheckedIcon = Icons.Default.Visibility,
-                    uncheckedDescription = "Hide app"
+                    uncheckedDescription = stringResource(R.string.hide_app)
                 ) {
                     app.hidden = it
                 }
@@ -103,9 +105,9 @@ fun AppVolumeSlider(
             ToggleButton(
                 checked = app.disableVolumeButtons,
                 checkedIcon = HookOff,
-                checkedDescription = "Enable volume buttons",
+                checkedDescription = stringResource(R.string.enable_volume_buttons),
                 uncheckedIcon = Hook,
-                uncheckedDescription = "Disable volume buttons"
+                uncheckedDescription = stringResource(R.string.disable_volume_buttons)
             ) {
                 app.disableVolumeButtons = it
             }

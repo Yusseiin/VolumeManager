@@ -184,11 +184,15 @@ class Manager(context: Context, dataStore: DataStore<Preferences>) {
 
         if (mutable && index == 0) {
             audioManager.adjustStreamVolume(streamType, AudioManager.ADJUST_MUTE, 0)
-            Log.i(
-                TAG,
-                "muted stream $streamType, now ${audioManager.getStreamVolume(streamType)}, " +
-                        "muted = ${audioManager.isStreamMute(streamType)}"
-            )
+
+            if (BuildConfig.DEBUG) {
+                Log.i(
+                    TAG,
+                    "muted stream $streamType, now ${audioManager.getStreamVolume(streamType)}, " +
+                            "muted = ${audioManager.isStreamMute(streamType)}"
+                )
+            }
+
             return
         }
 
