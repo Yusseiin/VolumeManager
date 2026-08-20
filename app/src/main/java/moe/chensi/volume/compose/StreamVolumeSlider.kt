@@ -51,6 +51,9 @@ internal object VolumeChangeObserver {
     private val refCount = AtomicInteger(0)
     private var receiver: BroadcastReceiver? = null
     private var registeredContext: Context? = null
+
+    private val audioManager: AudioManager?
+        get() = registeredContext?.getSystemService(AudioManager::class.java)
     private var _lastChangedStreamType by mutableIntStateOf(-1)
 
     /** Stream type carried by the last volume change broadcast, or -1 if none was seen yet. */
@@ -104,9 +107,14 @@ internal object VolumeChangeObserver {
                     _lastChangedStreamType = streamType
 
                     val volume = intent.getIntExtra(EXTRA_VOLUME_STREAM_VALUE, -1)
-                    Log.i(TAG, "broadcast stream = $streamType, volume = $volume")
+                    val muted = audioManager?.isStreamMute(streamType) == true
+                    Log.i(TAG, "broadcast stream = $streamType, volume = $volume, muted = $muted")
 
-                    if (volume >= 0) {
+                    if (muted) {
+                        // The broadcast carries the stored index, but a muted stream plays nothing,
+                        // so showing that index would put the slider back above zero
+                        streamVolumes[streamType] = 0
+                    } else if (volume >= 0) {
                         streamVolumes[streamType] = volume
                     }
                 }
